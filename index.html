@@ -1,0 +1,1342 @@
+<script type="module" crossorigin src="/Program Files/Git/hakusurademo-play/assets/index-tkIukMBI.js"></script>
+<link rel="modulepreload" crossorigin href="/Program Files/Git/hakusurademo-play/assets/three-CHyeH1_D.js">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>D.E.M.O — Divine Echo: Mourning Order</title>
+
+<!-- ホーム画面に置けるようにする。パスは相対にして、サブパス配信（GitHub Pages）でも壊さない -->
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" type="image/png" href="favicon.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="theme-color" content="#16131c" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+<style>
+  :root {
+    --bg: #14161c;
+    --panel: rgba(20, 22, 28, 0.85);
+    --line: #2c3140;
+    --text: #d8dce6;
+    --dim: #79839c;
+    --normal: #c8cdd8;
+    --magic: #6c8cff;
+    --rare: #ffd24a;
+    --hp: #d4494f;
+    --exp: #4a86d4;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-l: env(safe-area-inset-left, 0px);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+  /* iOSはbodyではなく触れた要素のtouch-actionで拡大可否を決めるので、全要素に敷く。
+     詳細度が最弱なので、canvasやスティックの none はそのまま勝つ */
+  * { touch-action: manipulation; }
+
+  /* ゲーム画面。ダブルタップ拡大も含めて、ブラウザ側の操作は全部止める */
+  canvas { display: block; touch-action: none; }
+  .hidden { display: none !important; }
+
+  .panel {
+    position: fixed;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    backdrop-filter: blur(4px);
+  }
+
+  #stats { top: 12px; left: 12px; min-width: 176px; }
+  .panel { padding: 0; overflow: hidden; }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 11px;
+    border: 0;
+    background: none;
+    color: var(--dim);
+    font: inherit;
+    font-size: 13px;
+    letter-spacing: .06em;
+    cursor: pointer;
+    /* アイコンの帯を並べても見出しが折り返さないようにする */
+    white-space: nowrap;
+  }
+  .caret { transition: transform .15s; }
+  .panel.collapsed .caret { transform: rotate(-90deg); }
+  .panel.collapsed .panel-body { display: none; }
+
+  /* 見出しに並べる装備アイコン。畳んでいても何をつけているかが分かる */
+  .gear-strip { display: flex; align-items: center; gap: 3px; margin: 0 auto 0 8px; }
+  .gear-strip .cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 21px;
+    height: 21px;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+    background: rgba(12, 14, 20, .6);
+  }
+  /* つけているものの等級を枠の色で出す。中身を読まなくても当たりが分かる */
+  .gear-strip .cell.normal { border-color: #5a6274; }
+  .gear-strip .cell.magic  { border-color: var(--magic); }
+  .gear-strip .cell.rare   { border-color: var(--rare); }
+  /* 空きスロットは沈ませる。埋まっていないことが一目で分かる */
+  .gear-strip .cell.empty { opacity: .28; }
+  .gear-strip svg { display: block; }
+  .panel-body { padding: 0 11px 10px; }
+  #gear { top: 12px; right: 76px; width: 226px; max-height: 58vh; overflow-y: auto; }
+
+  /* ---- 左下のHPハートとレベル ---- */
+  #vitals {
+    position: fixed;
+    left: calc(14px + var(--safe-l));
+    bottom: calc(14px + var(--safe-b));
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    max-width: 60vw;
+    z-index: 8;
+    pointer-events: none;
+  }
+
+  #heart { width: 78px; height: 72px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+  #heart-value {
+    font-size: 15px;
+    font-weight: 700;
+    fill: #fff;
+    paint-order: stroke;
+    stroke: rgba(0,0,0,.75);
+    stroke-width: 3px;
+    text-anchor: middle;
+  }
+
+  #level-box { padding-bottom: 6px; }
+  #level-num {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+    text-shadow: 0 2px 4px rgba(0,0,0,.8);
+  }
+  #level-num small { font-size: 13px; color: var(--dim); font-weight: 400; }
+  #exp-track {
+    width: 104px;
+    height: 7px;
+    margin-top: 5px;
+    border-radius: 4px;
+    background: rgba(20,22,28,.85);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  #exp-fill { display: block; height: 100%; background: var(--exp); width: 0; transition: width .15s; }
+  #mana-track {
+    width: 104px;
+    height: 7px;
+    margin-top: 4px;
+    border-radius: 4px;
+    background: rgba(20,22,28,.85);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  #mana-fill { display: block; height: 100%; background: #7a5cd8; width: 100%; transition: width .12s; }
+  #points-note { margin-top: 4px; font-size: 13px; color: #7fd97f; }
+
+  /* ミニマップ。ボタンの下に置いて指と重ならないようにする */
+  #minimap {
+    position: fixed;
+    /* ボタン列（最大4つ）の下。街の内外でボタン数が変わるが、
+       地図が上下に動くと目が迷うので、常に4つぶんを空けておく */
+    top: 278px;
+    right: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(16, 18, 24, .82);
+    z-index: 7;
+    /* 押すと倍率が変わるので、指を受け取る */
+    pointer-events: auto;
+    cursor: pointer;
+    touch-action: none;
+  }
+
+  /* ポーション。ハートの隣に並べて、左下をひとかたまりの「体力まわり」にする。
+     残りは液面の高さで見せる。数字を読まなくても残量が分かる */
+  #potions { display: flex; gap: 6px; pointer-events: auto; align-items: flex-end; }
+  #potions button.bottle {
+    width: 40px;
+    height: 60px;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    touch-action: none;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,.6));
+    transition: transform .1s;
+  }
+  #potions .bottle svg { display: block; width: 100%; height: 100%; }
+  /* 液面は飲んだ瞬間に下がる。動きがあると飲めたことが分かる */
+  #potions .liquid { transition: y .18s, height .18s; }
+  #potions .glass { fill: none; stroke: rgba(255,255,255,.4); stroke-width: 2.5; }
+  #potions .cork { fill: #7b6248; }
+  #potion-hp .cork { fill: #8a5a4a; }
+  #potions .count {
+    font-size: 17px;
+    font-weight: 700;
+    fill: #fff;
+    paint-order: stroke;
+    stroke: rgba(0,0,0,.8);
+    stroke-width: 3.5px;
+    text-anchor: middle;
+    font-variant-numeric: tabular-nums;
+  }
+  #potions button.bottle:active { transform: scale(.92); }
+  /* 空は液面が無いだけだと分かりにくいので、瓶ごと沈ませる */
+  #potions button.empty { opacity: .32; }
+
+  /* ---- キャラの上のHPバー ---- */
+  #player-hp {
+    position: fixed;
+    left: 0; top: 0;
+    width: 74px;
+    height: 7px;
+    border-radius: 4px;
+    background: rgba(0,0,0,.65);
+    border: 1px solid rgba(0,0,0,.8);
+    z-index: 6;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  #player-hp > i { display: block; height: 100%; background: var(--hp); }
+
+  /* 被弾したことを画面全体で伝える赤いふち */
+  #hurt {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 4;
+    background: radial-gradient(ellipse at center,
+      rgba(220, 60, 60, 0) 45%, rgba(200, 40, 45, .55) 100%);
+  }
+
+  /* 3D空間の上に重ねるダメージ数字 */
+  #texts { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  /* 街のゲートの名前。ダメージ数字と同じ層に重ねるが、消えずに出しっぱなし */
+  .gate-label {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .04em;
+  }
+
+  #texts .float {
+    position: absolute;
+    left: 0; top: 0;
+    white-space: nowrap;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, .9);
+    font-variant-numeric: tabular-nums;
+    will-change: transform, opacity;
+  }
+
+  /* ---- 右下のボタン ---- */
+  #buttons {
+    position: fixed;
+    right: 12px;
+    top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 12;
+  }
+  #buttons button {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: rgba(20, 22, 28, .88);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+  }
+  #buttons button:active { background: rgba(60, 68, 88, .9); }
+  #buttons .badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 4px;
+    border-radius: 10px;
+    background: #7fd97f;
+    color: #14161c;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 19px;
+  }
+  #buttons .badge.zero { display: none; }
+
+  /* 攻撃と回避。右の親指が届く位置に置く */
+  #actions {
+    position: fixed;
+    right: 16px;
+    bottom: calc(18px + var(--safe-b));
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: end;
+    gap: 10px;
+    z-index: 12;
+  }
+  /* スキルは攻撃ボタンの上に積む。横に並べると左下の表示にぶつかる */
+  #skills { grid-column: 2; grid-row: 1; }
+  #attack-stack { grid-column: 2; grid-row: 2; }
+  #btn-dodge { grid-column: 1; grid-row: 2; }
+  #actions button {
+    border: 2px solid rgba(216, 220, 230, .28);
+    background: rgba(30, 34, 44, .72);
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+    border-radius: 50%;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    touch-action: none;
+  }
+  #skills { display: flex; flex-direction: column-reverse; gap: 9px; align-items: center; }
+  #skills button {
+    position: relative;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    border: 2px solid rgba(150, 130, 220, .45);
+    background: rgba(40, 34, 62, .8);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    overflow: hidden;
+    touch-action: none;
+  }
+  #skills button:active { background: rgba(80, 66, 130, .9); transform: scale(.94); }
+  /* クールダウンは下から満ちる影で見せる。数字より一目で分かる */
+  #skills .cd {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, .62);
+    pointer-events: none;
+  }
+  #skills button.locked { opacity: .45; }
+
+  #attack-stack { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  #btn-attack { width: 92px; height: 92px; font-size: 15px; }
+  #btn-auto {
+    width: 62px;
+    height: 34px;
+    border-radius: 17px;
+    font-size: 13px;
+    letter-spacing: .06em;
+    color: var(--dim);
+  }
+  /* オンのときは光らせる。押す必要がない状態だと一目で分かる */
+  #btn-auto.on { border-color: #5b8dd9; color: #9dc0f5; background: rgba(44, 60, 92, .8); }
+  #btn-dodge { width: 66px; height: 66px; }
+  #actions button:active { background: rgba(70, 90, 130, .85); transform: scale(.94); }
+  #actions button:disabled { opacity: .35; }
+  #actions.auto #btn-attack { opacity: .4; }
+
+  /* 仮想スティック */
+  #stick {
+    position: fixed;
+    display: none;
+    width: 128px; height: 128px;
+    margin: -64px 0 0 -64px;
+    border: 2px solid rgba(216, 220, 230, .25);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #knob {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 52px; height: 52px;
+    margin: -26px 0 0 -26px;
+    background: rgba(216, 220, 230, .3);
+    border-radius: 50%;
+  }
+
+  /* ---- モーダル（装備・パッシブ・設定） ---- */
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: rgba(10, 11, 15, .94);
+    display: flex;
+    flex-direction: column;
+    padding: 14px 14px calc(14px + var(--safe-b));
+    overflow: hidden;
+  }
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .modal-head h1 { margin: 0; font-size: 15px; }
+  .modal-head button {
+    border: 1px solid var(--line);
+    background: rgba(30, 34, 44, .9);
+    color: var(--text);
+    font: inherit;
+    padding: 9px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .modal-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+  #inv-stats, #pv-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+    color: var(--dim);
+  }
+  #inv-stats b, #pv-head b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+  #inv-tabs { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  #inv-tabs button {
+    flex: 1 1 auto;
+    min-width: 62px;
+    padding: 9px 6px;
+    border: 1px solid var(--line);
+    background: rgba(28, 31, 40, .9);
+    color: var(--dim);
+    font: inherit;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  #inv-tabs button.on { border-color: #5b8dd9; color: var(--text); background: rgba(44, 60, 92, .9); }
+  #inv-tabs .count { color: var(--dim); font-size: 12px; }
+
+  .card {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background: rgba(24, 27, 35, .9);
+    cursor: pointer;
+  }
+  .card.equipped { border-color: #5b8dd9; background: rgba(38, 52, 80, .9); }
+  .card:active { background: rgba(48, 54, 70, .9); }
+  .card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  /* 職業カードの挿絵。画像が無い職はJS側で丸ごと消える */
+  .class-art {
+    display: block;
+    width: calc(100% + 24px);
+    margin: -10px -12px 8px;
+    height: 120px;
+    object-fit: cover;
+    object-position: center 20%;
+    border-radius: 8px 8px 0 0;
+    border-bottom: 1px solid var(--line);
+  }
+  /* 絵ごとに顔の位置が違うので、切り出し位置だけ職別に微調整する */
+  .card[data-id="hunter"] .class-art { object-position: center 8%; }
+  .card[data-id="mage"] .class-art { object-position: center 35%; }
+  .card .tag { font-size: 12px; color: var(--dim); }
+  .card .delta { font-variant-numeric: tabular-nums; font-size: 14px; }
+  .delta.up { color: #7fd97f; }
+  .delta.down { color: #e0777c; }
+  .stash-btn {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: rgba(36, 40, 52, .9);
+    color: var(--dim);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .stash-btn:active { background: rgba(56, 62, 80, .9); color: var(--text); }
+  .card.boon { border-color: #6b5a2e; background: rgba(44, 38, 24, .9); }
+  .card.boon.armed { border-color: #e0989c; }
+  #boon-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+    color: var(--dim);
+  }
+  #boon-head b { color: var(--text); }
+  #boon-head .guide { flex-basis: 100%; font-size: 13px; line-height: 1.5; }
+  #boon-head .guide b { color: #e0a0a4; }
+  .orb-btn { border-color: #4b3a63; color: #c9a2ff; }
+  .orb-btn.danger { border-color: #7d3b40; color: #e0989c; }
+
+  /* パッシブ */
+  .passive { display: flex; align-items: center; gap: 12px; }
+  .passive .info { flex: 1; min-width: 0; }
+  .passive .name { font-weight: 600; }
+  .passive .effect { color: var(--dim); font-size: 14px; }
+  .passive .rank { font-variant-numeric: tabular-nums; color: var(--dim); font-size: 14px; }
+  .passive .plus {
+    width: 44px; height: 44px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: rgba(40, 60, 44, .9);
+    color: #7fd97f;
+    font: inherit;
+    font-size: 20px;
+    cursor: pointer;
+  }
+  .passive .plus:disabled { opacity: .3; cursor: default; color: var(--dim); background: rgba(30,34,44,.9); }
+  .pips { display: flex; gap: 3px; margin-top: 5px; flex-wrap: wrap; }
+  .pips i { width: 12px; height: 5px; border-radius: 2px; background: #2f3545; }
+  .pips i.on { background: #7fd97f; }
+
+  /* タイトル */
+  /* 背景とロゴは生成イラスト（prompts/ 参照）。
+     文字の後ろが暗くなるよう、絵の上に上下グラデーションを重ねる */
+  #title {
+    justify-content: center;
+    background:
+      linear-gradient(rgba(10, 11, 15, .45), rgba(10, 11, 15, .86)),
+      url('art/title_bg.webp') center / cover no-repeat,
+      #0a0b0f;
+  }
+  #title-head { text-align: center; margin-bottom: 18px; }
+  #title-logo {
+    width: min(440px, 82vw);
+    max-height: 34vh;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 18px rgba(0, 0, 0, .7));
+    transition: width .3s, max-height .3s;
+  }
+  /* 最初はロゴだけ。タップで職業選択が現れる（.intro が外れる） */
+  #title.intro { cursor: pointer; }
+  #title.intro #title-body,
+  #title.intro .title-foot { display: none; }
+  #title.intro #title-logo { width: min(560px, 92vw); max-height: 52vh; }
+  #title-hint {
+    margin: 26px 0 0;
+    color: var(--dim);
+    font-size: 14px;
+    letter-spacing: .3em;
+    animation: title-hint-pulse 1.8s ease-in-out infinite;
+  }
+  #title:not(.intro) #title-hint { display: none; }
+  @keyframes title-hint-pulse {
+    0%, 100% { opacity: .35; }
+    50% { opacity: .95; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #title-hint { animation: none; }
+    #title-logo { transition: none; }
+  }
+  #title-head p { margin: 6px 0 0; color: var(--dim); font-size: 14px; text-shadow: 0 1px 6px rgba(0,0,0,.8); }
+  #title-body { flex: 0 1 auto; max-height: 62vh; }
+  .title-note { color: var(--dim); font-size: 14px; margin-bottom: 10px; text-align: center; }
+  .title-foot { color: var(--dim); font-size: 13px; text-align: center; margin-top: 12px; }
+
+  /* 技能ツリー */
+  /* 1本の大樹。9本の小枝は画面に収まらないので、
+     技能画面の本文そのものを縦横スクロールにして1本指で斜めに動かす。
+     入れ子のスクロールにすると縦と横で指の担当が分かれて操作が難しくなる */
+  #pv-list { overflow: auto; touch-action: pan-x pan-y; }
+  .tree-scroll { overflow: visible; }
+  .tree-canvas { width: 860px; position: relative; }
+  .tree-canvas > :not(.tree-bg) { position: relative; z-index: 1; }
+  /* 世界樹のイラスト。ノードの後ろで、根から樹冠へ登る絵になる */
+  .tree-bg {
+    position: absolute;
+    inset: 0;
+    background: url('art/guide_passives.webp') center bottom / cover no-repeat;
+    opacity: .55;
+  }
+  .tree-bg::after {
+    /* 文字が絵に喰われないように全体を沈める。中腹だけ少し絵を透かす */
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      rgba(10, 11, 15, .78),
+      rgba(10, 11, 15, .5) 45%,
+      rgba(10, 11, 15, .8)
+    );
+  }
+  /* 小枝そのもの。ノードの後ろを1本の枝が貫く。
+     枝の線はノードが生えている区間（chain）だけに走らせる */
+  .path-chain { position: relative; }
+  .path-chain::before {
+    content: '';
+    position: absolute;
+    top: 14px;
+    bottom: 26px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    background: #5b4a33;
+    border-radius: 2px;
+  }
+  .path-chain > * { position: relative; }
+  /* てっぺんの葉の茂み。ノードの上にこんもり乗る */
+  .tree-row[data-depth="6"]::before {
+    content: '';
+    display: block;
+    height: 26px;
+    margin: 0 4px 2px;
+    border-radius: 50% 50% 45% 45%;
+    background:
+      radial-gradient(circle at 28% 62%, rgba(88, 133, 90, 0.9), transparent 68%),
+      radial-gradient(circle at 72% 58%, rgba(71, 112, 68, 0.9), transparent 68%),
+      radial-gradient(circle at 50% 30%, rgba(99, 148, 96, 0.95), transparent 72%);
+  }
+  /* ノードをわずかに傾けて、定規で引いた格子ではなく生えた枝葉に見せる */
+  .canopy .path:nth-child(odd) .tree-row:nth-child(4n+1) .node { transform: rotate(-1.6deg); }
+  .canopy .path:nth-child(odd) .tree-row:nth-child(4n+3) .node { transform: rotate(1.3deg); }
+  .canopy .path:nth-child(even) .tree-row:nth-child(4n+1) .node { transform: rotate(1.6deg); }
+  .canopy .path:nth-child(even) .tree-row:nth-child(4n+3) .node { transform: rotate(-1.3deg); }
+
+  .canopy { display: flex; gap: 6px; }
+  .path { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+  /* 枝の長さを下端でそろえる。そろえないと継ぎ目の線が枝に届かない */
+  .path-fill { flex: 1; }
+
+  /* 大枝から3本の小枝へ割れる継ぎ目 */
+  .fork9 { display: flex; gap: 6px; height: 20px; }
+  .fgroup { flex: 1; display: flex; position: relative; }
+  .fgroup::before {
+    content: '';
+    position: absolute;
+    left: 16.6%;
+    right: 16.6%;
+    top: 9px;
+    height: 3px;
+    background: #5b4a33;
+    border-radius: 2px;
+  }
+  .fgroup::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 9px;
+    width: 3px;
+    height: 11px;
+    background: #5b4a33;
+  }
+  .fgroup i { flex: 1; position: relative; }
+  .fgroup i::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 0;
+    width: 3px;
+    height: 10px;
+    background: #5b4a33;
+  }
+
+  /* 大枝。系統の名前を背負う3つのノード */
+  .limbs { display: flex; gap: 6px; }
+  .limb { flex: 1; display: flex; flex-direction: column; align-items: center; }
+  .limb-tag { font-size: 12px; color: #8a744f; margin-bottom: 4px; letter-spacing: .08em; }
+  .limb .node { width: 62%; border-color: #5b4a33; }
+
+  /* 幹から3本の大枝へ割れる継ぎ目 */
+  .fork3 { display: flex; height: 22px; position: relative; }
+  .fork3::before {
+    content: '';
+    position: absolute;
+    left: 16.6%;
+    right: 16.6%;
+    top: 10px;
+    height: 4px;
+    background: #5b4a33;
+    border-radius: 2px;
+  }
+  .fork3::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 10px;
+    width: 6px;
+    height: 12px;
+    background: #5b4a33;
+  }
+  .fork3 i { flex: 1; position: relative; }
+  .fork3 i::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 0;
+    width: 4px;
+    height: 11px;
+    background: #5b4a33;
+  }
+
+  /* 幹と根。木がここから生えていることを絵で言う */
+  .trunk {
+    width: 18px;
+    height: 40px;
+    margin: 0 auto;
+    background: linear-gradient(#5b4a33, #43351f);
+    border-radius: 4px 4px 10px 10px;
+    position: relative;
+  }
+  .trunk::before, .trunk::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    width: 26px;
+    height: 8px;
+    background: #43351f;
+    border-radius: 6px;
+  }
+  .trunk::before { left: -22px; transform: rotate(14deg); }
+  .trunk::after { right: -22px; transform: rotate(-14deg); }
+  .path-name {
+    text-align: center;
+    font-size: 12px;
+    color: #8a744f;
+    letter-spacing: .2em;
+    margin-top: 6px;
+    border-top: 2px solid #5b4a33;
+    padding-top: 4px;
+  }
+  .branch-name {
+    text-align: center;
+    color: var(--dim);
+    font-size: 13px;
+    letter-spacing: .1em;
+    margin-bottom: 8px;
+  }
+  .tree-row { display: flex; flex-direction: column; gap: 6px; }
+  /* 最上段は樹冠。いちばん高くまで育った証に金のふちを付ける */
+  .path .tree-row[data-depth="6"] .node { border-color: #8a744f; }
+  .path .tree-row[data-depth="6"] .node.ready { border-color: #b99a55; }
+  .path .tree-row[data-depth="6"] .node.maxed { border-color: #ffd24a; }
+  /* 混成キーストーン。2系統の奥を束ねた証に紫のふち */
+  .path .tree-row[data-depth="7"] .node { border-color: #7a5fa8; }
+  .path .tree-row[data-depth="7"] .node.ready { border-color: #a678e8; }
+  .path .tree-row[data-depth="7"] .node.maxed { border-color: #c9a2ff; }
+  /* 段のあいだをつなぐ幹。下（根本）ほど太い */
+  .tree-link {
+    width: 3px;
+    background: #5b4a33 !important;
+    border-radius: 2px;
+    height: 14px;
+    margin: 0 auto;
+    background: var(--line);
+  }
+  /* ノードは円形の紋章。大樹に実る果実のように見せる */
+  .node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 82px;
+    height: 82px;
+    margin: 0 auto;
+    padding: 6px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    background:
+      radial-gradient(circle at 32% 28%, rgba(120, 132, 160, 0.16), transparent 58%),
+      radial-gradient(circle at 50% 60%, rgba(20, 23, 31, 0.96), rgba(30, 34, 46, 0.96));
+    box-shadow: 0 0 0 3px rgba(10, 12, 16, 0.7), inset 0 0 10px rgba(0, 0, 0, 0.55);
+    color: var(--text);
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+  }
+  .node:active { background: rgba(48, 54, 70, .9); }
+
+  /* 技能名は金の題字。効果の説明とひと目で区別できるようにする */
+  .node-name {
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.1;
+    color: #d9b978;
+    letter-spacing: .06em;
+  }
+  .node-divider {
+    display: block;
+    width: 26px;
+    height: 1px;
+    margin: 2px auto;
+    background: rgba(216, 220, 230, .22);
+  }
+  .node-effect { font-size: 10px; color: var(--dim); line-height: 1.25; }
+  /* 混成ノードの取得条件。別の枝の前提は並びから読めないので文章で出す */
+  .node-requires { font-size: 9px; color: #c9a95c; line-height: 1.3; }
+  .node-confirm { font-size: 9px; color: #ffd9a8; font-weight: 700; }
+
+  /* 状態の色。緑＝いま振れる、青＝取得済み、暗い＝まだ */
+  .node.ready { border-color: #4f8f4f; background:
+    radial-gradient(circle at 32% 28%, rgba(110, 170, 110, 0.2), transparent 58%),
+    radial-gradient(circle at 50% 60%, rgba(18, 30, 22, 0.96), rgba(28, 44, 32, 0.96)); }
+  .node.maxed { border-color: #5b8dd9; }
+  .node.maxed .node-name { color: #9dc0f5; }
+  .node.locked { opacity: .45; cursor: default; }
+  .node.locked .node-name { color: #8a8064; }
+
+  /* 選択中。もう一度押せば習得 */
+  .node.armed {
+    border-color: #ffd9a8;
+    box-shadow: 0 0 0 3px rgba(255, 217, 168, 0.25), 0 0 14px rgba(255, 217, 168, 0.35),
+      inset 0 0 10px rgba(0, 0, 0, 0.55);
+  }
+
+  /* 樹冠の1点物は金、混成は紫のふち */
+  .tree-row[data-depth="6"] .node { border-color: #8a744f; }
+  .tree-row[data-depth="6"] .node.maxed { border-color: #ffd24a; }
+  .tree-row[data-depth="7"] .node { border-color: #7a5fa8; }
+  .tree-row[data-depth="7"] .node.maxed { border-color: #c9a2ff; }
+
+  /* Waystone。危険と実入りを左右に並べて取引として読ませる */
+  #ws-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+    color: var(--dim);
+  }
+  #ws-head b { color: var(--text); font-variant-numeric: tabular-nums; }
+  #ws-head .guide { flex-basis: 100%; font-size: 13px; line-height: 1.5; }
+  .ws-cols { display: flex; gap: 10px; margin-top: 8px; }
+  .ws-col { flex: 1 1 0; min-width: 0; }
+  .ws-head {
+    font-size: 12px;
+    letter-spacing: .08em;
+    padding-bottom: 3px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--line);
+  }
+  .ws-head.danger { color: #e0898d; }
+  .ws-head.reward { color: #7fd97f; }
+  .mod.danger { color: #dfa7aa; }
+  .mod.reward { color: #a5dda5; }
+  /* 試練。点けると枠が灯る。危険と実入りを同じ札の中に並べて書く */
+  .card.trial { cursor: pointer; }
+  .card.trial.on { border-color: var(--rare); background: rgba(48, 40, 22, .85); }
+  .card.trial .switch { flex: 0 0 auto; }
+  .card.trial.on .switch { background: #6b5a22; }
+  .card.trial.on .switch::after { transform: translateX(20px); background: var(--rare); }
+  .trial-cols { display: flex; flex-direction: column; gap: 2px; margin-top: 5px; }
+
+  /* 店。買えないもの（金が足りない・まだ開いていない）は沈ませる */
+  .card.shop { cursor: pointer; }
+  .card.shop.locked { opacity: .45; cursor: default; }
+  .guide { color: var(--dim); font-size: 13px; margin: 2px 0 8px; }
+
+  /* 設定 */
+  .setting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: rgba(24, 27, 35, .9);
+    cursor: pointer;
+  }
+  .setting .hint { color: var(--dim); font-size: 13px; }
+  .switch {
+    flex: 0 0 auto;
+    width: 46px; height: 26px;
+    border-radius: 13px;
+    background: #2f3545;
+    position: relative;
+    transition: background .15s;
+  }
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: #8b95ad;
+    transition: transform .15s, background .15s;
+  }
+  .setting.on .switch { background: #2f5c88; }
+  .setting.on .switch::after { transform: translateX(20px); background: #9dc0f5; }
+
+  /* つまみで決める設定。押しても切り替わらないので、指の形も出さない */
+  .setting.range { cursor: default; }
+  .setting.range .range-value { color: #9dc0f5; font-variant-numeric: tabular-nums; }
+  .setting.range input[type="range"] {
+    flex: 0 0 auto;
+    width: 120px;
+    height: 26px;
+    accent-color: #5b8dd9;
+    cursor: pointer;
+    /* つまみを動かすとき、画面ごとスクロールさせない */
+    touch-action: pan-x;
+  }
+
+  h2 {
+    margin: 0 0 6px;
+    font-size: 13px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .row { display: flex; justify-content: space-between; gap: 12px; }
+  .row span:last-child { font-variant-numeric: tabular-nums; }
+
+  .slot { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .slot:last-child { border-bottom: 0; }
+  .slot-name { color: var(--dim); font-size: 13px; }
+  .icon { vertical-align: middle; flex: 0 0 auto; }
+  .with-icon { display: flex; align-items: center; gap: 8px; }
+  /* 武器に嵌まっているスキル。空き枠も出して「あと何個入るか」を見せる */
+  .sockets { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+  .socket {
+    display: grid;
+    grid-template-columns: 26px auto 1fr;
+    align-items: baseline;
+    gap: 7px;
+    padding: 5px 7px;
+    border-radius: 6px;
+    /* 左のふちを太くして、基板の穴に嵌まっているように見せる */
+    border-left: 3px solid var(--line);
+    background: rgba(30, 34, 46, .7);
+  }
+  .socket-tier {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-align: center;
+    color: var(--dim);
+  }
+  .socket-name { font-weight: 600; font-size: 14px; }
+  .socket-effect { font-size: 12px; color: var(--dim); }
+  /* 段が上がるほど強く光らせる。どれが当たりの枠かが一目で分かる */
+  .socket.t1 { border-left-color: #5a6274; }
+  .socket.t2 { border-left-color: var(--magic); }
+  .socket.t2 .socket-tier, .socket.t2 .socket-name { color: var(--magic); }
+  .socket.t3 { border-left-color: var(--rare); background: rgba(52, 44, 24, .55); }
+  .socket.t3 .socket-tier, .socket.t3 .socket-name { color: var(--rare); }
+  .socket.empty {
+    border-left-style: dashed;
+    background: rgba(20, 22, 28, .5);
+    opacity: .45;
+  }
+
+  .item-name { font-weight: 600; }
+  .item-name.normal { color: var(--normal); }
+  .item-name.magic { color: var(--magic); }
+  .item-name.rare { color: var(--rare); }
+  .item-name.unique { color: #ff8a3d; text-shadow: 0 0 6px rgba(255, 138, 61, 0.35); }
+  .mod { color: var(--text); font-size: 14px; opacity: .85; }
+  .mod .tier { color: var(--dim); font-size: 12px; }
+  .empty { color: var(--dim); font-style: italic; }
+
+  @media (max-width: 720px) {
+    body { font-size: 13px; }
+    #stats { min-width: 132px; }
+    /* 見出しにアイコンの帯が入るぶん、畳んだときの幅が要る */
+    #gear { width: 186px; max-height: 36vh; opacity: .9; }
+    .gear-strip { gap: 2px; }
+    .gear-strip .cell { width: 18px; height: 18px; }
+    .mod { font-size: 12px; }
+    #buttons button { width: 50px; height: 50px; }
+    #minimap { top: 250px; }
+    #potions button.bottle { width: 32px; height: 48px; }
+    #potions .count { font-size: 19px; stroke-width: 4px; }
+    #heart { width: 58px; height: 54px; }
+    #exp-track, #mana-track { width: 84px; }
+    #level-num { font-size: 17px; }
+    #skills button { width: 52px; height: 52px; font-size: 12px; }
+    #btn-attack { width: 78px; height: 78px; font-size: 15px; }
+  }
+
+  /* 幅の狭い機種。左下が回避ボタンに届いてしまうので、もう一段小さくする */
+  @media (max-width: 400px) {
+    #potions button.bottle { width: 28px; height: 42px; }
+    #exp-track, #mana-track { width: 72px; }
+    #btn-dodge { width: 58px; height: 58px; }
+    #btn-auto { width: 56px; height: 30px; }
+  }
+
+  /* 通れないゲートを踏んだときの説明ポップアップ。
+     浮遊テキストは毎フレーム重なって読めなくなるので、1枚の札で出す。
+     操作を邪魔しないよう、触れられない飾りにしておく */
+  .gate-pop {
+    position: fixed;
+    left: 50%;
+    top: 24%;
+    transform: translateX(-50%);
+    max-width: min(320px, 84vw);
+    background: rgba(24, 27, 36, 0.94);
+    border: 1px solid #454e66;
+    border-radius: 12px;
+    padding: 12px 16px;
+    text-align: center;
+    z-index: 30;
+    pointer-events: none;
+  }
+  .gate-pop-title { font-weight: 700; color: #f2c879; margin-bottom: 4px; }
+  .gate-pop-body { color: #c8cdd8; font-size: 14px; line-height: 1.6; }
+
+  /* はじめての人への案内。読む→わかったを押す、の1往復だけの札 */
+  .tip-pop {
+    position: fixed;
+    left: 50%;
+    top: 30%;
+    transform: translateX(-50%);
+    width: min(320px, 86vw);
+    background: rgba(24, 27, 36, 0.97);
+    border: 1px solid #6c8cff;
+    border-radius: 14px;
+    padding: 16px 18px;
+    z-index: 60;
+  }
+  /* スキルの初回発動カットイン。戦闘を止めずに端へ一瞬だけ滑り込む */
+
+  @media (prefers-reduced-motion: reduce) {
+  }
+
+  /* 札の上に敷く挿絵。武器や画面ごとの生成イラスト（public/art/）を出す。
+     coverで切り抜くと絵の主役（弓の全体など）が見切れるので、
+     全体が収まるcontainにして、余白は絵の闇に馴染む黒で埋める */
+  .tip-art {
+    object-fit: contain;
+    background: #0b0a08;
+    display: block;
+    width: calc(100% + 36px);
+    margin: -16px -18px 12px;
+    height: 190px;
+    border-radius: 13px 13px 0 0;
+    border-bottom: 1px solid rgba(108, 140, 255, .4);
+  }
+  .tip-title { font-weight: 700; font-size: 15px; color: #9dc0f5; margin-bottom: 6px; }
+  .tip-body { color: #c8cdd8; font-size: 15px; line-height: 1.7; }
+  .tip-row { display: flex; gap: 10px; justify-content: center; }
+  .tip-row .tip-ok { margin: 12px 0 0; }
+  .tip-sub { background: #2c3140 !important; color: var(--dim) !important; }
+  .tip-ok {
+    display: block;
+    margin: 12px auto 0;
+    padding: 8px 32px;
+    border: 0;
+    border-radius: 999px;
+    background: #6c8cff;
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+  }
+
+  /* 画面を開いている間、世界が止まっていることを一言で伝える */
+  #pause-badge {
+    position: fixed;
+    left: 50%;
+    top: 10px;
+    transform: translateX(-50%);
+    padding: 4px 14px;
+    border-radius: 999px;
+    background: rgba(24, 27, 36, 0.85);
+    border: 1px solid var(--line);
+    color: var(--dim);
+    font-size: 12px;
+    z-index: 45;
+    pointer-events: none;
+  }
+
+  /* 帰還ボタン。ダンジョンでだけ出る。押すと3秒の詠唱が始まる */
+  #btn-portal {
+    position: fixed;
+    right: 14px;
+    top: 236px;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    border: 1px solid rgba(157, 192, 245, .5);
+    background: rgba(30, 34, 44, .78);
+    color: #9dc0f5;
+    font: inherit;
+    font-size: 13px;
+    z-index: 9;
+    touch-action: manipulation;
+  }
+  #btn-portal.casting { border-color: #9dc0f5; background: rgba(38, 48, 70, .9); }
+
+  /* いま持っている武器。戦闘中いつでも見える小さな札。
+     3Dの持ち手だけでは小さくて伝わらない、への答え */
+  .weapon-chip {
+    position: fixed;
+    left: 50%;
+    bottom: 118px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: rgba(24, 27, 36, 0.82);
+    border: 1px solid rgba(216, 220, 230, 0.18);
+    border-radius: 999px;
+    font-size: 14px;
+    pointer-events: none;
+    z-index: 12;
+  }
+</style>
+
+<canvas id="stage"></canvas>
+
+<canvas id="minimap"></canvas>
+<div id="hurt"></div>
+<div id="player-hp" class="hidden"><i></i></div>
+<div id="guide-pop" class="tip-pop hidden" style="z-index: 70">
+  <img id="guide-art" class="tip-art hidden" alt="">
+  <div id="guide-title" class="tip-title"></div>
+  <div id="guide-body" class="tip-body"></div>
+  <button id="guide-ok" class="tip-ok" type="button">OK</button>
+</div>
+
+<div id="bossgate-pop" class="tip-pop hidden">
+  <div class="tip-title">勝利の門</div>
+  <div id="bossgate-body" class="tip-body"></div>
+  <div class="tip-row">
+    <button id="bossgate-stay" class="tip-ok tip-sub" type="button">まだ歩く</button>
+    <button id="bossgate-town" class="tip-ok tip-sub" type="button">街へ帰る</button>
+    <button id="bossgate-go" class="tip-ok" type="button">次の階へ</button>
+  </div>
+</div>
+
+<div id="warp-pop" class="tip-pop hidden">
+  <div class="tip-title">喪の道</div>
+  <div id="warp-body" class="tip-body"></div>
+  <div class="tip-row">
+    <button id="warp-stay" class="tip-ok tip-sub" type="button">まだ歩く</button>
+    <button id="warp-go" class="tip-ok" type="button">ボスへ跳ぶ</button>
+  </div>
+</div>
+
+<div id="tip" class="tip-pop hidden">
+  <img id="tip-art" class="tip-art hidden" alt="">
+  <div id="tip-title" class="tip-title"></div>
+  <div id="tip-body" class="tip-body"></div>
+  <button id="tip-ok" class="tip-ok" type="button">OK</button>
+</div>
+
+<button id="btn-portal" class="hidden" type="button">帰還</button>
+
+<div id="pause-badge" class="hidden">⏸ 一時停止中</div>
+
+<div id="weapon-chip" class="weapon-chip hidden"></div>
+
+<div id="death-pop" class="tip-pop hidden" style="z-index: 65; border-color: #a04048; text-align: center">
+  <div class="tip-title" style="color: #ff6b6b">倒れた</div>
+  <div class="tip-body">経験値を失った。<span id="death-count">3</span>秒後に立ち上がる……</div>
+</div>
+
+<div id="update-pop" class="tip-pop hidden" style="z-index: 70; text-align: left; max-width: min(420px, 92vw)">
+  <div class="tip-title">更新情報 <span id="update-ver" style="opacity:.6; font-size: 12px"></span></div>
+  <div id="update-body" class="tip-body" style="max-height: 50vh; overflow-y: auto"></div>
+  <button type="button" id="update-ok" class="tip-ok">OK</button>
+  <button type="button" id="update-mute" class="stash-btn" style="margin-top:6px">次回から自動で出さない</button>
+</div>
+
+<div id="gate-pop" class="gate-pop hidden">
+  <div id="gate-pop-title" class="gate-pop-title"></div>
+  <div id="gate-pop-body" class="gate-pop-body"></div>
+</div>
+
+<div id="texts"></div>
+
+<div class="panel" id="stats">
+  <button class="panel-head" type="button" data-panel="stats">ステータス<span class="caret">▾</span></button>
+  <div class="panel-body" id="stats-body"></div>
+</div>
+<div class="panel" id="gear">
+  <!--
+    畳んでいる間も、今つけているものが分かるようにアイコンを並べる。
+    見出しだけだと「装備」としか出ず、遊んでいる最中に何を着ているか分からない。
+  -->
+  <button class="panel-head" type="button" data-panel="gear">
+    装備<span class="gear-strip" id="gear-strip"></span><span class="caret">▾</span>
+  </button>
+  <div class="panel-body" id="gear-body"></div>
+</div>
+
+<div id="vitals">
+  <svg id="heart" viewBox="0 0 100 100" aria-hidden="true">
+    <defs>
+      <clipPath id="heart-clip">
+        <path d="M50 92 C18 68, 2 47, 2 29 C2 13, 14 3, 28 3 C38 3, 46 9, 50 17 C54 9, 62 3, 72 3 C86 3, 98 13, 98 29 C98 47, 82 68, 50 92 Z" />
+      </clipPath>
+    </defs>
+    <g clip-path="url(#heart-clip)">
+      <rect x="0" y="0" width="100" height="100" fill="#2b2028" />
+      <rect id="heart-fill" x="0" y="0" width="100" height="100" fill="var(--hp)" />
+    </g>
+    <path d="M50 92 C18 68, 2 47, 2 29 C2 13, 14 3, 28 3 C38 3, 46 9, 50 17 C54 9, 62 3, 72 3 C86 3, 98 13, 98 29 C98 47, 82 68, 50 92 Z"
+          fill="none" stroke="rgba(255,255,255,.35)" stroke-width="3" />
+    <text id="heart-value" x="50" y="56">100</text>
+  </svg>
+
+  <!--
+    ポーション。残りが液面の高さで見える小瓶。
+    数字を読まなくても「あと少し」が分かるようにする。
+    ハートと同じく、器の形で切り抜いて中身を下から満たす作り。
+  -->
+  <div id="potions">
+    <button id="potion-hp" class="bottle" type="button" aria-label="HPポーション">
+      <svg viewBox="0 0 40 60" aria-hidden="true">
+        <defs>
+          <clipPath id="bottle-clip-hp">
+            <path d="M14 5 L26 5 L26 14 L32 22 L32 48 Q32 55 25 55 L15 55 Q8 55 8 48 L8 22 L14 14 Z" />
+          </clipPath>
+        </defs>
+        <g clip-path="url(#bottle-clip-hp)">
+          <rect x="0" y="0" width="40" height="60" fill="rgba(20,16,20,.85)" />
+          <rect class="liquid" id="potion-hp-liquid" x="0" y="55" width="40" height="0" fill="var(--hp)" />
+        </g>
+        <path class="glass" d="M14 5 L26 5 L26 14 L32 22 L32 48 Q32 55 25 55 L15 55 Q8 55 8 48 L8 22 L14 14 Z" />
+        <rect class="cork" x="13" y="0" width="14" height="6" rx="2" />
+        <text class="count" id="potion-hp-count" x="20" y="42">0</text>
+      </svg>
+    </button>
+
+    <button id="potion-mana" class="bottle" type="button" aria-label="マナポーション">
+      <svg viewBox="0 0 40 60" aria-hidden="true">
+        <defs>
+          <clipPath id="bottle-clip-mana">
+            <path d="M14 5 L26 5 L26 14 L32 22 L32 48 Q32 55 25 55 L15 55 Q8 55 8 48 L8 22 L14 14 Z" />
+          </clipPath>
+        </defs>
+        <g clip-path="url(#bottle-clip-mana)">
+          <rect x="0" y="0" width="40" height="60" fill="rgba(18,16,26,.85)" />
+          <rect class="liquid" id="potion-mana-liquid" x="0" y="55" width="40" height="0" fill="#7a5cd8" />
+        </g>
+        <path class="glass" d="M14 5 L26 5 L26 14 L32 22 L32 48 Q32 55 25 55 L15 55 Q8 55 8 48 L8 22 L14 14 Z" />
+        <rect class="cork" x="13" y="0" width="14" height="6" rx="2" />
+        <text class="count" id="potion-mana-count" x="20" y="42">0</text>
+      </svg>
+    </button>
+  </div>
+
+  <div id="level-box">
+    <div id="level-num">Lv <span id="level-value">1</span></div>
+    <div id="exp-track"><i id="exp-fill"></i></div>
+    <div id="mana-track"><i id="mana-fill"></i></div>
+    <div id="points-note" class="hidden">ポイント <b id="points-value">0</b></div>
+  </div>
+</div>
+
+<div id="buttons">
+  <button id="btn-inv" type="button">装備<span class="badge zero" id="inv-badge">0</span></button>
+  <button id="btn-passive" type="button">技能<span class="badge zero" id="passive-badge">0</span></button>
+  <button id="btn-town" type="button" class="hidden">街<span class="badge zero" id="town-badge">0</span></button>
+  <button id="btn-settings" type="button">設定</button>
+</div>
+
+<div id="stick"><div id="knob"></div></div>
+
+<div id="actions">
+  <button id="btn-dodge" type="button">回避</button>
+  <div id="skills"></div>
+  <div id="attack-stack">
+    <button id="btn-auto" type="button">AUTO</button>
+    <button id="btn-attack" type="button">攻撃</button>
+  </div>
+</div>
+
+<div id="inventory" class="modal hidden">
+  <div class="modal-head">
+    <h1>装備</h1>
+    <button id="inv-close" type="button">閉じる</button>
+  </div>
+  <div id="inv-stats"></div>
+  <div id="inv-tabs"></div>
+  <div id="inv-list" class="modal-body"></div>
+</div>
+
+<div id="passives" class="modal hidden">
+  <div class="modal-head">
+    <h1>技能</h1>
+    <button id="pv-close" type="button">閉じる</button>
+  </div>
+  <div id="pv-head"></div>
+  <div id="pv-list" class="modal-body"></div>
+</div>
+
+<div id="title" class="modal">
+  <div id="title-head">
+    <img id="title-logo" src="art/title_logo.webp" alt="D.E.M.O — Divine Echo: Mourning Order">
+    <p id="title-hint">タップして始める</p>
+  </div>
+  <div id="title-body" class="modal-body">
+    <div id="title-classes"></div>
+  </div>
+  <div class="title-foot">あとから設定でやり直せる（最初から始まる）</div>
+</div>
+
+<div id="classpick" class="modal hidden">
+  <div class="modal-head">
+    <h1>職業を変える</h1>
+    <button id="pick-close" type="button">やめる</button>
+  </div>
+  <div class="hint" style="color:var(--dim);margin-bottom:10px">選んだ職で初期武器・伸びるステータス・使えるスキルが変わる。あとから設定で変更できる（最初からやり直しになる）。</div>
+  <div id="class-list" class="modal-body"></div>
+</div>
+
+<div id="town" class="modal hidden">
+  <div class="modal-head">
+    <h1>街</h1>
+    <button id="town-close" type="button">閉じる</button>
+  </div>
+  <div id="town-head"></div>
+  <div id="town-tabs" class="tabs"></div>
+  <div id="town-list" class="modal-body"></div>
+</div>
+
+<div id="boons" class="modal hidden">
+  <div class="modal-head">
+    <h1>覚悟</h1>
+    <button id="boon-close" type="button">あとで選ぶ</button>
+  </div>
+  <div id="boon-head"></div>
+  <div id="boon-list" class="modal-body"></div>
+</div>
+
+<div id="settings" class="modal hidden">
+  <div class="modal-head">
+    <h1>設定</h1>
+    <button id="set-close" type="button">閉じる</button>
+  </div>
+  <div id="set-list" class="modal-body"></div>
+  <button id="set-class" type="button" style="margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:8px;background:rgba(40,34,62,.9);color:var(--text);font:inherit;cursor:pointer">職業を変える（最初からやり直し）</button>
+</div>
+

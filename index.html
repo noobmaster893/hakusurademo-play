@@ -1,4 +1,4 @@
-<script type="module" crossorigin src="/hakusurademo-play/assets/index-D3Xm94gr.js"></script>
+<script type="module" crossorigin src="/hakusurademo-play/assets/index-DpJmdCbD.js"></script>
 <link rel="modulepreload" crossorigin href="/hakusurademo-play/assets/three-CHyeH1_D.js">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
@@ -334,6 +334,14 @@
     cursor: pointer;
     overflow: hidden;
     touch-action: none;
+  }
+  /* 名前の入れ物。丸に収める大きさは skills-bar.ts が測って決める */
+  #skills .label {
+    display: block;
+    line-height: 1.06;
+    padding: 0 4px;
+    word-break: break-word;
+    overflow-wrap: anywhere;
   }
   #skills button:active { background: rgba(80, 66, 130, .9); transform: scale(.94); }
   /* クールダウンは下から満ちる影で見せる。数字より一目で分かる */

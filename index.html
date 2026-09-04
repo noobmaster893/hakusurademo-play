@@ -1,5 +1,5 @@
-<script type="module" crossorigin src="/hakusurademo-play/assets/index-hvWjIc3U.js"></script>
-<link rel="modulepreload" crossorigin href="/hakusurademo-play/assets/three-CHyeH1_D.js">
+<script type="module" crossorigin src="/hakusurademo-play/assets/index-BXPEfUTZ.js"></script>
+<link rel="modulepreload" crossorigin href="/hakusurademo-play/assets/three-BaBSa4qv.js">
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
 <title>D.E.M.O — Divine Echo: Mourning Order</title>
@@ -970,6 +970,15 @@
   .mod { color: var(--text); font-size: 14px; opacity: .85; }
   .mod .tier { color: var(--dim); font-size: 12px; }
   .empty { color: var(--dim); font-style: italic; }
+
+  /* 背の低い横長の画面（PCのブラウザを横に広げた形）。
+     地図は右上のボタン列の下に置いてあるが、画面が低いと
+     右下の操作ボタン（帰還・技・AUTO・攻撃）とぶつかる。
+     実測: 1280x529 で技ボタンが地図の内側に完全に入っていた。
+     左の中ほどは何も置いていないので、地図をそちらへ寄せる */
+  @media (max-height: 700px) and (min-width: 721px) {
+    #minimap { top: 92px; right: auto; left: 12px; }
+  }
 
   @media (max-width: 720px) {
     body { font-size: 13px; }
